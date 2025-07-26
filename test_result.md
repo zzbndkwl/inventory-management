@@ -102,101 +102,83 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Desktop application (Windows) for spare‑parts, accessories, consumables, and service billing with real‑time inventory tracking, purchase management, customer & service records, reporting, and integration with accounting and tax systems. MVP Focus: Invoice Creation with Real-time Inventory Updates, Thermal Receipt Generation, Anonymous Customer Support"
+user_problem_statement: "Desktop application (Windows) for spare‑parts, accessories, consumables, and service billing with real‑time inventory tracking. USER CORRECTIONS: 1) Fix revenue calculation to only include completed invoice sales 2) Remove HSN, GST, unit from item form; add sub_category; default min_stock=5 3) Remove all GST calculations 4) Add ongoing bill feature with save/complete workflow 5) Allow multiple prices per SKU with operator selection"
 
 backend:
-  - task: "Item Master CRUD Operations"
+  - task: "Revenue Calculation Fix"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Implemented complete item management with SKU, name, category, brand, prices, stock, HSN codes, GST rates. Includes search functionality and validation."
-      - working: true
-        agent: "testing"
-        comment: "✅ All CRUD operations working perfectly. Tested create, read, update, delete operations with proper validation. Duplicate SKU validation working correctly. Created test items with different categories (Brake System, Lubricants, Filters), GST rates (18%, 28%), and stock levels. All operations successful."
+        comment: "Fixed dashboard stats to only count revenue from completed invoices, not from item additions."
 
-  - task: "Real-time Inventory Search"
+  - task: "Item Model Simplification"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Implemented fast search across items by name, SKU, category, brand with regex matching and limit of 100 results."
-      - working: true
-        agent: "testing"
-        comment: "✅ Search functionality working perfectly. Tested search by name (Brake), SKU (OIL001), category (Lubricants), and brand (Bosch). All searches return correct results with case-insensitive regex matching. Performance is good with 100 result limit."
+        comment: "Removed HSN code, GST rate, unit fields from Item model. Added sub_category field. Set default min_stock to 5."
 
-  - task: "Invoice Creation with Stock Updates"
+  - task: "Remove GST Calculations"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Complete invoice system with multi-item support, automatic stock validation, real-time stock updates, and stock transaction logging."
-      - working: true
-        agent: "testing"
-        comment: "✅ Invoice creation and stock updates working perfectly. Tested multi-item invoice creation with real-time stock validation and updates. Stock quantities correctly reduced after invoice creation. Insufficient stock validation working - properly rejects orders exceeding available stock. Stock transaction logging implemented."
+        comment: "Completely removed all GST calculation logic from invoice creation. Invoice now has subtotal = final_total."
 
-  - task: "GST Calculations"
+  - task: "Ongoing Invoice Management"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Automatic GST calculations per item, subtotal, total GST, round-off calculations for final invoice total."
-      - working: true
-        agent: "testing"
-        comment: "✅ GST calculations working perfectly. Tested with items having different GST rates (18% and 28%). Subtotal, GST amounts, round-off, and final total calculations are accurate. Verified manual calculations match system calculations exactly."
+        comment: "Added invoice status field with ongoing/completed states. Added endpoints for ongoing invoice management, complete invoice, delete ongoing invoice."
 
-  - task: "Thermal Receipt Generation"
+  - task: "Multiple Prices per SKU"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Professional thermal receipt format (48 chars wide) with invoice details, items, GST breakdown, totals."
-      - working: true
-        agent: "testing"
-        comment: "✅ Thermal receipt generation working perfectly. Receipt format is professional with 48-character width limit maintained. Contains all essential elements: store header, invoice number, customer details, itemized list with GST breakdown, totals, and thank you message. Format is suitable for thermal printers."
+        comment: "Removed unique SKU constraint. Added endpoint to get price variants by SKU. Support for selected_price in invoice creation."
 
-  - task: "Dashboard Statistics API"
+  - task: "Updated Thermal Receipt"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Dashboard stats including total items, invoices, low stock alerts, today's sales and revenue."
-      - working: true
-        agent: "testing"
-        comment: "Minor: Dashboard stats API working correctly. All required fields present (total_items, total_invoices, low_stock_items, today_invoices, today_revenue) with correct data types. Minor routing issue: /items/low-stock endpoint returns 404 due to route order conflict with /items/{item_id} - needs route reordering fix."
+        comment: "Updated thermal receipt format to remove GST details and show invoice status."
 
 frontend:
-  - task: "Dashboard with Stats and Navigation"
+  - task: "Dashboard with Ongoing Invoices"
     implemented: true
     working: "NA"
     file: "/app/frontend/src/App.js"
@@ -206,9 +188,9 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Beautiful dashboard with stats cards, low stock alerts, quick navigation buttons. Responsive design with Tailwind."
+        comment: "Added ongoing invoices count to dashboard. Added ongoing invoices section with complete/delete actions."
 
-  - task: "Invoice Creation Interface"
+  - task: "Simplified Invoice Creation"
     implemented: true
     working: "NA"
     file: "/app/frontend/src/App.js"
@@ -218,21 +200,9 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Advanced invoice creation UI with customer info, search-as-you-type item lookup, real-time calculations, quantity controls."
+        comment: "Removed all GST calculations from invoice UI. Added dual buttons for Complete Invoice and Save as Ongoing."
 
-  - task: "Item Management Interface"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/App.js"
-    stuck_count: 0
-    priority: "medium"
-    needs_retesting: true
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "Complete item management with search, add new items modal, stock status indicators, responsive table design."
-
-  - task: "Real-time Search and Updates"
+  - task: "Updated Item Management"
     implemented: true
     working: "NA"
     file: "/app/frontend/src/App.js"
@@ -242,27 +212,37 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Search-as-you-type functionality, real-time invoice calculations, instant UI updates for stock changes."
+        comment: "Updated add item form to remove HSN, GST, unit fields. Added sub_category field. Set default min_stock to 5."
+
+  - task: "Price Selection in Invoice"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added price input field for each item in invoice creation. Operator can modify price before finalizing invoice."
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 1
+  version: "2.0"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Item Master CRUD Operations"
-    - "Real-time Inventory Search"
-    - "Invoice Creation with Stock Updates"
-    - "GST Calculations"
-    - "Thermal Receipt Generation"
+    - "Revenue Calculation Fix"
+    - "Item Model Simplification"
+    - "Remove GST Calculations"
+    - "Ongoing Invoice Management"
+    - "Multiple Prices per SKU"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented complete spare-parts billing MVP with item management, invoice creation, real-time inventory updates, GST calculations, thermal receipts, and dashboard. All backend APIs and frontend interfaces are ready for testing. Priority is to test the core invoice creation workflow with inventory updates."
-  - agent: "testing"
-    message: "✅ BACKEND TESTING COMPLETED: All high-priority backend functionality is working correctly. Tested 35 scenarios across 6 core areas. Item CRUD operations, inventory search, invoice creation with stock updates, GST calculations, and thermal receipt generation all passed completely. Dashboard stats working with minor routing issue (/items/low-stock endpoint needs route reordering). Core billing system is fully functional and ready for production use."
+    message: "Implemented all user-requested corrections: 1) Fixed revenue to only count completed invoices 2) Simplified item form by removing HSN/GST/unit, added sub_category, default min_stock=5 3) Removed all GST calculations 4) Added ongoing bill save/complete workflow 5) Enabled multiple prices per SKU with operator selection. All backend APIs and frontend interfaces updated. Ready for testing."
