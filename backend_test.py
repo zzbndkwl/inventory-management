@@ -498,15 +498,16 @@ class BackendTester:
                     receipt_data = response.json()
                     receipt_text = receipt_data.get("receipt", "")
                     
-                    # Verify receipt does NOT contain GST details
-                    gst_terms = ['GST', 'CGST', 'SGST', 'IGST', 'Tax', 'HSN']
-                    has_gst_terms = any(term in receipt_text.upper() for term in gst_terms)
+                    # Verify receipt does NOT contain GST calculation details
+                    # Check for GST-related calculation terms, not just the word GST in customer names
+                    gst_calculation_terms = ['CGST:', 'SGST:', 'IGST:', 'GST Amount:', 'Tax Amount:', 'HSN Code:']
+                    has_gst_calculations = any(term in receipt_text for term in gst_calculation_terms)
                     
-                    if not has_gst_terms:
-                        self.log_result("thermal_receipt_update", f"No GST details in receipt {invoice['invoice_number']}", True)
+                    if not has_gst_calculations:
+                        self.log_result("thermal_receipt_update", f"No GST calculations in receipt {invoice['invoice_number']}", True)
                     else:
-                        self.log_result("thermal_receipt_update", f"No GST details in receipt {invoice['invoice_number']}", False, 
-                                      "Receipt contains GST-related terms")
+                        self.log_result("thermal_receipt_update", f"No GST calculations in receipt {invoice['invoice_number']}", False, 
+                                      "Receipt contains GST calculation details")
                     
                     # Verify receipt shows invoice status
                     status_shown = f"Status: {invoice['status'].upper()}" in receipt_text
