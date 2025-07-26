@@ -523,7 +523,7 @@ class BackendTester:
                         ("Store header", "SPARE PARTS STORE" in receipt_text),
                         ("Items section", "ITEM" in receipt_text and "QTY" in receipt_text),
                         ("Total section", "TOTAL:" in receipt_text),
-                        ("Thank you message", "Thank you" in receipt_text.lower()),
+                        ("Thank you message", "thank you" in receipt_text.lower()),
                         ("Receipt width", all(len(line) <= 48 for line in receipt_text.split('\n')))
                     ]
                     
