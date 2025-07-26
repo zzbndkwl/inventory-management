@@ -31,14 +31,12 @@ class Item(BaseModel):
     sku: str
     name: str
     category: str = ""
+    sub_category: str = ""
     brand: str = ""
-    unit: str = "Piece"
     cost_price: float
     selling_price: float
-    hsn_code: str = ""
-    gst_rate: float
     stock_quantity: int = 0
-    min_stock: int = 0
+    min_stock: int = 5
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -46,25 +44,21 @@ class ItemCreate(BaseModel):
     sku: str
     name: str
     category: str = ""
+    sub_category: str = ""
     brand: str = ""
-    unit: str = "Piece"
     cost_price: float
     selling_price: float
-    hsn_code: str = ""
-    gst_rate: float
     stock_quantity: int = 0
-    min_stock: int = 0
+    min_stock: int = 5
 
 class ItemUpdate(BaseModel):
     sku: Optional[str] = None
     name: Optional[str] = None
     category: Optional[str] = None
+    sub_category: Optional[str] = None
     brand: Optional[str] = None
-    unit: Optional[str] = None
     cost_price: Optional[float] = None
     selling_price: Optional[float] = None
-    hsn_code: Optional[str] = None
-    gst_rate: Optional[float] = None
     stock_quantity: Optional[int] = None
     min_stock: Optional[int] = None
 
@@ -74,32 +68,27 @@ class InvoiceItem(BaseModel):
     name: str
     quantity: int
     unit_price: float
-    gst_rate: float
-    hsn_code: str
     line_total: float
-    gst_amount: float
 
 class Invoice(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     invoice_number: str
     customer_name: str = "Walk-in Customer"
     customer_phone: str = ""
-    customer_gstin: str = ""
     items: List[InvoiceItem]
     subtotal: float
-    total_gst: float
-    round_off: float
     final_total: float
     payment_mode: str = "Cash"
+    status: str = "completed"  # "ongoing" or "completed"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "system"
 
 class InvoiceCreate(BaseModel):
     customer_name: str = "Walk-in Customer"
     customer_phone: str = ""
-    customer_gstin: str = ""
-    items: List[dict]  # {item_id, quantity}
+    items: List[dict]  # {item_id, quantity, selected_price}
     payment_mode: str = "Cash"
+    status: str = "completed"  # "ongoing" or "completed"
 
 class StockTransaction(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -113,11 +102,7 @@ class StockTransaction(BaseModel):
 # Item Management Routes
 @api_router.post("/items", response_model=Item)
 async def create_item(item: ItemCreate):
-    # Check if SKU already exists
-    existing_item = await db.items.find_one({"sku": item.sku})
-    if existing_item:
-        raise HTTPException(status_code=400, detail="SKU already exists")
-    
+    # Allow multiple items with same SKU but different prices
     item_dict = item.dict()
     item_obj = Item(**item_dict)
     await db.items.insert_one(item_obj.dict())
@@ -131,6 +116,7 @@ async def get_items(search: str = Query("", description="Search by SKU, name, or
                 {"sku": {"$regex": search, "$options": "i"}},
                 {"name": {"$regex": search, "$options": "i"}},
                 {"category": {"$regex": search, "$options": "i"}},
+                {"sub_category": {"$regex": search, "$options": "i"}},
                 {"brand": {"$regex": search, "$options": "i"}}
             ]
         }
@@ -138,6 +124,12 @@ async def get_items(search: str = Query("", description="Search by SKU, name, or
         query = {}
     
     items = await db.items.find(query).limit(100).to_list(100)
+    return [Item(**item) for item in items]
+
+@api_router.get("/items/by-sku/{sku}")
+async def get_items_by_sku(sku: str):
+    """Get all price variants for a specific SKU"""
+    items = await db.items.find({"sku": sku}).to_list(100)
     return [Item(**item) for item in items]
 
 @api_router.get("/items/{item_id}", response_model=Item)
@@ -176,7 +168,6 @@ async def create_invoice(invoice_data: InvoiceCreate):
     
     invoice_items = []
     subtotal = 0
-    total_gst = 0
     
     # Process each item
     for item_data in invoice_data.items:
@@ -188,11 +179,10 @@ async def create_invoice(invoice_data: InvoiceCreate):
         if item["stock_quantity"] < item_data["quantity"]:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for {item['name']}. Available: {item['stock_quantity']}")
         
-        # Calculate line totals
+        # Use selected price if provided, otherwise use item's selling price
+        unit_price = item_data.get("selected_price", item["selling_price"])
         quantity = item_data["quantity"]
-        unit_price = item["selling_price"]
         line_total = quantity * unit_price
-        gst_amount = (line_total * item["gst_rate"]) / 100
         
         invoice_item = InvoiceItem(
             item_id=item["id"],
@@ -200,59 +190,97 @@ async def create_invoice(invoice_data: InvoiceCreate):
             name=item["name"],
             quantity=quantity,
             unit_price=unit_price,
-            gst_rate=item["gst_rate"],
-            hsn_code=item["hsn_code"],
-            line_total=line_total,
-            gst_amount=gst_amount
+            line_total=line_total
         )
         
         invoice_items.append(invoice_item)
         subtotal += line_total
-        total_gst += gst_amount
         
-        # Update stock
-        new_stock = item["stock_quantity"] - quantity
-        await db.items.update_one(
-            {"id": item["id"]},
-            {"$set": {"stock_quantity": new_stock, "updated_at": datetime.utcnow()}}
-        )
-        
-        # Record stock transaction
-        stock_transaction = StockTransaction(
-            item_id=item["id"],
-            transaction_type="OUT",
-            quantity=quantity,
-            reference_type="INVOICE",
-            reference_id=invoice_number
-        )
-        await db.stock_transactions.insert_one(stock_transaction.dict())
-    
-    # Calculate final total with round off
-    gross_total = subtotal + total_gst
-    final_total = round(gross_total)
-    round_off = final_total - gross_total
+        # Update stock only if invoice is completed
+        if invoice_data.status == "completed":
+            new_stock = item["stock_quantity"] - quantity
+            await db.items.update_one(
+                {"id": item["id"]},
+                {"$set": {"stock_quantity": new_stock, "updated_at": datetime.utcnow()}}
+            )
+            
+            # Record stock transaction
+            stock_transaction = StockTransaction(
+                item_id=item["id"],
+                transaction_type="OUT",
+                quantity=quantity,
+                reference_type="INVOICE",
+                reference_id=invoice_number
+            )
+            await db.stock_transactions.insert_one(stock_transaction.dict())
     
     # Create invoice
     invoice = Invoice(
         invoice_number=invoice_number,
         customer_name=invoice_data.customer_name,
         customer_phone=invoice_data.customer_phone,
-        customer_gstin=invoice_data.customer_gstin,
         items=invoice_items,
         subtotal=subtotal,
-        total_gst=total_gst,
-        round_off=round_off,
-        final_total=final_total,
-        payment_mode=invoice_data.payment_mode
+        final_total=subtotal,  # No GST calculations
+        payment_mode=invoice_data.payment_mode,
+        status=invoice_data.status
     )
     
     await db.invoices.insert_one(invoice.dict())
     return invoice
 
 @api_router.get("/invoices", response_model=List[Invoice])
-async def get_invoices(limit: int = Query(50, le=100)):
-    invoices = await db.invoices.find().sort("created_at", -1).limit(limit).to_list(limit)
+async def get_invoices(limit: int = Query(50, le=100), status: str = Query("", description="Filter by status")):
+    query = {}
+    if status:
+        query["status"] = status
+    
+    invoices = await db.invoices.find(query).sort("created_at", -1).limit(limit).to_list(limit)
     return [Invoice(**invoice) for invoice in invoices]
+
+@api_router.get("/invoices/ongoing", response_model=List[Invoice])
+async def get_ongoing_invoices():
+    """Get all ongoing invoices"""
+    invoices = await db.invoices.find({"status": "ongoing"}).sort("created_at", -1).to_list(100)
+    return [Invoice(**invoice) for invoice in invoices]
+
+@api_router.put("/invoices/{invoice_id}/complete")
+async def complete_invoice(invoice_id: str):
+    """Convert ongoing invoice to completed and update stock"""
+    invoice = await db.invoices.find_one({"id": invoice_id})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    if invoice["status"] != "ongoing":
+        raise HTTPException(status_code=400, detail="Invoice is not ongoing")
+    
+    # Update stock for all items in the invoice
+    for item_data in invoice["items"]:
+        item = await db.items.find_one({"id": item_data["item_id"]})
+        if item:
+            new_stock = item["stock_quantity"] - item_data["quantity"]
+            await db.items.update_one(
+                {"id": item["id"]},
+                {"$set": {"stock_quantity": new_stock, "updated_at": datetime.utcnow()}}
+            )
+            
+            # Record stock transaction
+            stock_transaction = StockTransaction(
+                item_id=item["id"],
+                transaction_type="OUT",
+                quantity=item_data["quantity"],
+                reference_type="INVOICE",
+                reference_id=invoice["invoice_number"]
+            )
+            await db.stock_transactions.insert_one(stock_transaction.dict())
+    
+    # Update invoice status
+    await db.invoices.update_one(
+        {"id": invoice_id},
+        {"$set": {"status": "completed"}}
+    )
+    
+    return {"message": "Invoice completed successfully"}
 
 @api_router.get("/invoices/{invoice_id}", response_model=Invoice)
 async def get_invoice(invoice_id: str):
@@ -260,6 +288,19 @@ async def get_invoice(invoice_id: str):
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return Invoice(**invoice)
+
+@api_router.delete("/invoices/{invoice_id}")
+async def delete_invoice(invoice_id: str):
+    """Delete ongoing invoice (only ongoing invoices can be deleted)"""
+    invoice = await db.invoices.find_one({"id": invoice_id})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    if invoice["status"] != "ongoing":
+        raise HTTPException(status_code=400, detail="Only ongoing invoices can be deleted")
+    
+    result = await db.invoices.delete_one({"id": invoice_id})
+    return {"message": "Invoice deleted successfully"}
 
 # Thermal Receipt Generation
 @api_router.get("/invoices/{invoice_id}/thermal-receipt")
@@ -290,19 +331,12 @@ async def get_thermal_receipt(invoice_id: str):
         name = item.name[:20]
         line = f"{name:<20} {item.quantity:>3} {item.unit_price:>6.2f} {item.line_total:>8.2f}"
         receipt_lines.append(line)
-        if item.gst_rate > 0:
-            gst_line = f"  GST @ {item.gst_rate}%{' ' * 20}{item.gst_amount:>8.2f}"
-            receipt_lines.append(gst_line)
     
     receipt_lines.append("-" * 48)
-    receipt_lines.append(f"{'Subtotal:':<32}{invoice_obj.subtotal:>15.2f}")
-    receipt_lines.append(f"{'Total GST:':<32}{invoice_obj.total_gst:>15.2f}")
-    if invoice_obj.round_off != 0:
-        receipt_lines.append(f"{'Round Off:':<32}{invoice_obj.round_off:>15.2f}")
-    receipt_lines.append("=" * 48)
     receipt_lines.append(f"{'TOTAL:':<32}{invoice_obj.final_total:>15.2f}")
     receipt_lines.append("=" * 48)
     receipt_lines.append(f"Payment Mode: {invoice_obj.payment_mode}")
+    receipt_lines.append(f"Status: {invoice_obj.status.upper()}")
     receipt_lines.append("")
     receipt_lines.append("        Thank you for your business!")
     receipt_lines.append("=" * 48)
@@ -314,17 +348,22 @@ async def get_thermal_receipt(invoice_id: str):
 async def get_dashboard_stats():
     # Get basic statistics
     total_items = await db.items.count_documents({})
-    total_invoices = await db.invoices.count_documents({})
+    total_invoices = await db.invoices.count_documents({"status": "completed"})
+    ongoing_invoices = await db.invoices.count_documents({"status": "ongoing"})
     low_stock_items = await db.items.count_documents({"$expr": {"$lte": ["$stock_quantity", "$min_stock"]}})
     
-    # Today's sales
+    # Today's sales (only completed invoices)
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_sales = await db.invoices.find({"created_at": {"$gte": today_start}}).to_list(1000)
+    today_sales = await db.invoices.find({
+        "created_at": {"$gte": today_start},
+        "status": "completed"
+    }).to_list(1000)
     today_revenue = sum(invoice.get("final_total", 0) for invoice in today_sales)
     
     return {
         "total_items": total_items,
         "total_invoices": total_invoices,
+        "ongoing_invoices": ongoing_invoices,
         "low_stock_items": low_stock_items,
         "today_invoices": len(today_sales),
         "today_revenue": today_revenue
