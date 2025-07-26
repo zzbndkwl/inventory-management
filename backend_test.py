@@ -43,361 +43,452 @@ class BackendTester:
             self.results[category]["errors"].append(f"{test_name}: {error_msg}")
             print(f"❌ {test_name}: {error_msg}")
 
-    def test_item_crud_operations(self):
-        """Test Item Master CRUD Operations"""
-        print("\n🔧 Testing Item Master CRUD Operations...")
+    def test_item_model_simplification(self):
+        """Test Item Model Simplification - No HSN/GST/unit, added sub_category, min_stock=5"""
+        print("\n🔧 Testing Item Model Simplification...")
         
-        # Test 1: Create items with different categories and GST rates
+        # Test 1: Create items with simplified model (no HSN, GST, unit)
         test_items_data = [
             {
                 "sku": "BRAKE001",
                 "name": "Brake Pad Set - Front",
                 "category": "Brake System",
+                "sub_category": "Front Brake",
                 "brand": "Bosch",
-                "unit": "Set",
                 "cost_price": 1200.0,
                 "selling_price": 1500.0,
-                "hsn_code": "87083010",
-                "gst_rate": 28.0,
                 "stock_quantity": 50,
-                "min_stock": 10
+                "min_stock": 5  # Should default to 5
             },
             {
                 "sku": "OIL001",
                 "name": "Engine Oil 5W-30",
                 "category": "Lubricants",
+                "sub_category": "Engine Oil",
                 "brand": "Castrol",
-                "unit": "Liter",
                 "cost_price": 400.0,
                 "selling_price": 500.0,
-                "hsn_code": "27101981",
-                "gst_rate": 18.0,
-                "stock_quantity": 100,
-                "min_stock": 20
+                "stock_quantity": 100
+                # min_stock not provided - should default to 5
             },
             {
                 "sku": "FILTER001",
                 "name": "Air Filter",
                 "category": "Filters",
+                "sub_category": "Air Filters",
                 "brand": "Mann",
-                "unit": "Piece",
                 "cost_price": 250.0,
                 "selling_price": 350.0,
-                "hsn_code": "84213910",
-                "gst_rate": 18.0,
                 "stock_quantity": 25,
-                "min_stock": 5
+                "min_stock": 8  # Custom value
             }
         ]
 
-        # Create items
+        # Create items and verify simplified model
         for item_data in test_items_data:
             try:
                 response = self.session.post(f"{BACKEND_URL}/items", json=item_data)
                 if response.status_code == 200:
                     item = response.json()
                     self.test_items.append(item)
-                    self.log_result("item_crud", f"Create item {item_data['sku']}", True)
+                    
+                    # Verify simplified model - should NOT have HSN, GST, unit
+                    has_forbidden_fields = any(field in item for field in ['hsn_code', 'gst_rate', 'unit'])
+                    has_sub_category = 'sub_category' in item
+                    correct_min_stock = item.get('min_stock', 0) == item_data.get('min_stock', 5)
+                    
+                    if not has_forbidden_fields:
+                        self.log_result("item_model_simplification", f"No forbidden fields in {item_data['sku']}", True)
+                    else:
+                        self.log_result("item_model_simplification", f"No forbidden fields in {item_data['sku']}", False, 
+                                      "Item contains HSN/GST/unit fields")
+                    
+                    if has_sub_category:
+                        self.log_result("item_model_simplification", f"Has sub_category field in {item_data['sku']}", True)
+                    else:
+                        self.log_result("item_model_simplification", f"Has sub_category field in {item_data['sku']}", False, 
+                                      "Missing sub_category field")
+                    
+                    if correct_min_stock:
+                        self.log_result("item_model_simplification", f"Correct min_stock in {item_data['sku']}", True)
+                    else:
+                        self.log_result("item_model_simplification", f"Correct min_stock in {item_data['sku']}", False, 
+                                      f"Expected {item_data.get('min_stock', 5)}, got {item.get('min_stock')}")
+                        
+                    self.log_result("item_model_simplification", f"Create simplified item {item_data['sku']}", True)
                 else:
-                    self.log_result("item_crud", f"Create item {item_data['sku']}", False, 
+                    self.log_result("item_model_simplification", f"Create simplified item {item_data['sku']}", False, 
                                   f"Status: {response.status_code}, Response: {response.text}")
             except Exception as e:
-                self.log_result("item_crud", f"Create item {item_data['sku']}", False, str(e))
+                self.log_result("item_model_simplification", f"Create simplified item {item_data['sku']}", False, str(e))
 
-        # Test 2: Read all items
-        try:
-            response = self.session.get(f"{BACKEND_URL}/items")
-            if response.status_code == 200:
-                items = response.json()
-                if len(items) >= len(test_items_data):
-                    self.log_result("item_crud", "Read all items", True)
-                else:
-                    self.log_result("item_crud", "Read all items", False, 
-                                  f"Expected at least {len(test_items_data)} items, got {len(items)}")
-            else:
-                self.log_result("item_crud", "Read all items", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("item_crud", "Read all items", False, str(e))
-
-        # Test 3: Read individual items
-        for item in self.test_items:
-            try:
-                response = self.session.get(f"{BACKEND_URL}/items/{item['id']}")
-                if response.status_code == 200:
-                    retrieved_item = response.json()
-                    if retrieved_item['id'] == item['id']:
-                        self.log_result("item_crud", f"Read item {item['sku']}", True)
-                    else:
-                        self.log_result("item_crud", f"Read item {item['sku']}", False, "ID mismatch")
-                else:
-                    self.log_result("item_crud", f"Read item {item['sku']}", False, 
-                                  f"Status: {response.status_code}")
-            except Exception as e:
-                self.log_result("item_crud", f"Read item {item['sku']}", False, str(e))
-
-        # Test 4: Update item
-        if self.test_items:
-            item_to_update = self.test_items[0]
-            update_data = {
-                "selling_price": 1600.0,
-                "stock_quantity": 45
-            }
-            try:
-                response = self.session.put(f"{BACKEND_URL}/items/{item_to_update['id']}", json=update_data)
-                if response.status_code == 200:
-                    updated_item = response.json()
-                    if updated_item['selling_price'] == 1600.0 and updated_item['stock_quantity'] == 45:
-                        self.log_result("item_crud", f"Update item {item_to_update['sku']}", True)
-                        # Update our local copy
-                        item_to_update.update(updated_item)
-                    else:
-                        self.log_result("item_crud", f"Update item {item_to_update['sku']}", False, 
-                                      "Update values not reflected")
-                else:
-                    self.log_result("item_crud", f"Update item {item_to_update['sku']}", False, 
-                                  f"Status: {response.status_code}")
-            except Exception as e:
-                self.log_result("item_crud", f"Update item {item_to_update['sku']}", False, str(e))
-
-        # Test 5: Test duplicate SKU validation
-        if self.test_items:
-            duplicate_item = {
-                "sku": self.test_items[0]["sku"],  # Use existing SKU
-                "name": "Duplicate Test Item",
-                "cost_price": 100.0,
-                "selling_price": 150.0,
-                "gst_rate": 18.0
-            }
-            try:
-                response = self.session.post(f"{BACKEND_URL}/items", json=duplicate_item)
-                if response.status_code == 400:
-                    self.log_result("item_crud", "Duplicate SKU validation", True)
-                else:
-                    self.log_result("item_crud", "Duplicate SKU validation", False, 
-                                  f"Expected 400, got {response.status_code}")
-            except Exception as e:
-                self.log_result("item_crud", "Duplicate SKU validation", False, str(e))
-
-    def test_inventory_search(self):
-        """Test Real-time Inventory Search"""
-        print("\n🔍 Testing Real-time Inventory Search...")
+    def test_multiple_prices_per_sku(self):
+        """Test Multiple Prices per SKU - Same SKU can have different prices"""
+        print("\n💰 Testing Multiple Prices per SKU...")
         
-        if not self.test_items:
-            self.log_result("inventory_search", "Search tests", False, "No test items available")
-            return
+        # Test 1: Create multiple items with same SKU but different prices
+        same_sku_items = [
+            {
+                "sku": "SPARK001",
+                "name": "Spark Plug - Standard",
+                "category": "Ignition",
+                "sub_category": "Spark Plugs",
+                "brand": "NGK",
+                "cost_price": 150.0,
+                "selling_price": 200.0,
+                "stock_quantity": 30
+            },
+            {
+                "sku": "SPARK001",  # Same SKU
+                "name": "Spark Plug - Premium",
+                "category": "Ignition",
+                "sub_category": "Spark Plugs",
+                "brand": "NGK",
+                "cost_price": 250.0,
+                "selling_price": 350.0,  # Different price
+                "stock_quantity": 20
+            },
+            {
+                "sku": "SPARK001",  # Same SKU again
+                "name": "Spark Plug - Platinum",
+                "category": "Ignition",
+                "sub_category": "Spark Plugs",
+                "brand": "NGK",
+                "cost_price": 400.0,
+                "selling_price": 550.0,  # Different price
+                "stock_quantity": 15
+            }
+        ]
 
-        # Test 1: Search by name
-        try:
-            response = self.session.get(f"{BACKEND_URL}/items?search=Brake")
-            if response.status_code == 200:
-                items = response.json()
-                brake_items = [item for item in items if "Brake" in item["name"]]
-                if brake_items:
-                    self.log_result("inventory_search", "Search by name", True)
+        created_spark_items = []
+        for item_data in same_sku_items:
+            try:
+                response = self.session.post(f"{BACKEND_URL}/items", json=item_data)
+                if response.status_code == 200:
+                    item = response.json()
+                    created_spark_items.append(item)
+                    self.test_items.append(item)
+                    self.log_result("multiple_prices_per_sku", f"Create {item['name']}", True)
                 else:
-                    self.log_result("inventory_search", "Search by name", False, "No brake items found")
-            else:
-                self.log_result("inventory_search", "Search by name", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("inventory_search", "Search by name", False, str(e))
+                    self.log_result("multiple_prices_per_sku", f"Create {item_data['name']}", False, 
+                                  f"Status: {response.status_code}")
+            except Exception as e:
+                self.log_result("multiple_prices_per_sku", f"Create {item_data['name']}", False, str(e))
 
-        # Test 2: Search by SKU
-        try:
-            response = self.session.get(f"{BACKEND_URL}/items?search=OIL001")
-            if response.status_code == 200:
-                items = response.json()
-                oil_items = [item for item in items if item["sku"] == "OIL001"]
-                if oil_items:
-                    self.log_result("inventory_search", "Search by SKU", True)
+        # Test 2: Get price variants by SKU
+        if created_spark_items:
+            try:
+                response = self.session.get(f"{BACKEND_URL}/items/by-sku/SPARK001")
+                if response.status_code == 200:
+                    variants = response.json()
+                    if len(variants) >= 3:
+                        self.log_result("multiple_prices_per_sku", "Get price variants by SKU", True)
+                        
+                        # Verify different prices
+                        prices = [item['selling_price'] for item in variants]
+                        unique_prices = set(prices)
+                        if len(unique_prices) >= 3:
+                            self.log_result("multiple_prices_per_sku", "Multiple different prices for same SKU", True)
+                        else:
+                            self.log_result("multiple_prices_per_sku", "Multiple different prices for same SKU", False, 
+                                          f"Expected 3+ unique prices, got {len(unique_prices)}")
+                    else:
+                        self.log_result("multiple_prices_per_sku", "Get price variants by SKU", False, 
+                                      f"Expected 3+ variants, got {len(variants)}")
                 else:
-                    self.log_result("inventory_search", "Search by SKU", False, "OIL001 not found")
-            else:
-                self.log_result("inventory_search", "Search by SKU", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("inventory_search", "Search by SKU", False, str(e))
+                    self.log_result("multiple_prices_per_sku", "Get price variants by SKU", False, 
+                                  f"Status: {response.status_code}")
+            except Exception as e:
+                self.log_result("multiple_prices_per_sku", "Get price variants by SKU", False, str(e))
 
-        # Test 3: Search by category
-        try:
-            response = self.session.get(f"{BACKEND_URL}/items?search=Lubricants")
-            if response.status_code == 200:
-                items = response.json()
-                lubricant_items = [item for item in items if "Lubricants" in item["category"]]
-                if lubricant_items:
-                    self.log_result("inventory_search", "Search by category", True)
-                else:
-                    self.log_result("inventory_search", "Search by category", False, "No lubricant items found")
-            else:
-                self.log_result("inventory_search", "Search by category", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("inventory_search", "Search by category", False, str(e))
-
-        # Test 4: Search by brand
-        try:
-            response = self.session.get(f"{BACKEND_URL}/items?search=Bosch")
-            if response.status_code == 200:
-                items = response.json()
-                bosch_items = [item for item in items if "Bosch" in item["brand"]]
-                if bosch_items:
-                    self.log_result("inventory_search", "Search by brand", True)
-                else:
-                    self.log_result("inventory_search", "Search by brand", False, "No Bosch items found")
-            else:
-                self.log_result("inventory_search", "Search by brand", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("inventory_search", "Search by brand", False, str(e))
-
-    def test_invoice_creation_and_stock_updates(self):
-        """Test Invoice Creation with Stock Updates"""
-        print("\n📄 Testing Invoice Creation with Stock Updates...")
+    def test_ongoing_invoice_management(self):
+        """Test Ongoing Invoice Management - Save/Complete/Delete workflow"""
+        print("\n📋 Testing Ongoing Invoice Management...")
         
         if len(self.test_items) < 2:
-            self.log_result("invoice_creation", "Invoice creation tests", False, "Need at least 2 test items")
+            self.log_result("ongoing_invoice_management", "Ongoing invoice tests", False, "Need at least 2 test items")
             return
 
-        # Get current stock levels
-        initial_stocks = {}
-        for item in self.test_items:
-            try:
-                response = self.session.get(f"{BACKEND_URL}/items/{item['id']}")
-                if response.status_code == 200:
-                    current_item = response.json()
-                    initial_stocks[item['id']] = current_item['stock_quantity']
-            except Exception as e:
-                self.log_result("invoice_creation", f"Get initial stock for {item['sku']}", False, str(e))
-
-        # Test 1: Create invoice with multiple items
-        invoice_data = {
-            "customer_name": "John Smith",
+        # Test 1: Create ongoing invoice
+        ongoing_invoice_data = {
+            "customer_name": "John Doe",
             "customer_phone": "9876543210",
-            "customer_gstin": "27ABCDE1234F1Z5",
             "items": [
-                {"item_id": self.test_items[0]["id"], "quantity": 2},
-                {"item_id": self.test_items[1]["id"], "quantity": 3}
+                {"item_id": self.test_items[0]["id"], "quantity": 2, "selected_price": self.test_items[0]["selling_price"]},
+                {"item_id": self.test_items[1]["id"], "quantity": 1, "selected_price": self.test_items[1]["selling_price"]}
             ],
-            "payment_mode": "Cash"
+            "payment_mode": "Cash",
+            "status": "ongoing"
+        }
+
+        ongoing_invoice = None
+        try:
+            response = self.session.post(f"{BACKEND_URL}/invoices", json=ongoing_invoice_data)
+            if response.status_code == 200:
+                ongoing_invoice = response.json()
+                self.test_invoices.append(ongoing_invoice)
+                
+                if ongoing_invoice["status"] == "ongoing":
+                    self.log_result("ongoing_invoice_management", "Create ongoing invoice", True)
+                else:
+                    self.log_result("ongoing_invoice_management", "Create ongoing invoice", False, 
+                                  f"Expected status 'ongoing', got '{ongoing_invoice['status']}'")
+            else:
+                self.log_result("ongoing_invoice_management", "Create ongoing invoice", False, 
+                              f"Status: {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            self.log_result("ongoing_invoice_management", "Create ongoing invoice", False, str(e))
+
+        # Test 2: Verify stock is NOT updated for ongoing invoice
+        if ongoing_invoice:
+            for item_data in ongoing_invoice_data["items"]:
+                try:
+                    response = self.session.get(f"{BACKEND_URL}/items/{item_data['item_id']}")
+                    if response.status_code == 200:
+                        current_item = response.json()
+                        original_item = next(item for item in self.test_items if item['id'] == item_data['item_id'])
+                        
+                        if current_item['stock_quantity'] == original_item['stock_quantity']:
+                            self.log_result("ongoing_invoice_management", f"Stock not updated for ongoing invoice - {original_item['sku']}", True)
+                        else:
+                            self.log_result("ongoing_invoice_management", f"Stock not updated for ongoing invoice - {original_item['sku']}", False, 
+                                          "Stock was updated for ongoing invoice")
+                except Exception as e:
+                    self.log_result("ongoing_invoice_management", f"Check stock for ongoing invoice", False, str(e))
+
+        # Test 3: Get ongoing invoices
+        try:
+            response = self.session.get(f"{BACKEND_URL}/invoices/ongoing")
+            if response.status_code == 200:
+                ongoing_invoices = response.json()
+                if any(inv['id'] == ongoing_invoice['id'] for inv in ongoing_invoices):
+                    self.log_result("ongoing_invoice_management", "Get ongoing invoices", True)
+                else:
+                    self.log_result("ongoing_invoice_management", "Get ongoing invoices", False, 
+                                  "Created ongoing invoice not found in ongoing list")
+            else:
+                self.log_result("ongoing_invoice_management", "Get ongoing invoices", False, 
+                              f"Status: {response.status_code}")
+        except Exception as e:
+            self.log_result("ongoing_invoice_management", "Get ongoing invoices", False, str(e))
+
+        # Test 4: Complete ongoing invoice
+        if ongoing_invoice:
+            # Get stock levels before completion
+            pre_completion_stocks = {}
+            for item_data in ongoing_invoice_data["items"]:
+                try:
+                    response = self.session.get(f"{BACKEND_URL}/items/{item_data['item_id']}")
+                    if response.status_code == 200:
+                        item = response.json()
+                        pre_completion_stocks[item_data['item_id']] = item['stock_quantity']
+                except Exception as e:
+                    pass
+
+            try:
+                response = self.session.put(f"{BACKEND_URL}/invoices/{ongoing_invoice['id']}/complete")
+                if response.status_code == 200:
+                    self.log_result("ongoing_invoice_management", "Complete ongoing invoice", True)
+                    
+                    # Verify stock is now updated
+                    for item_data in ongoing_invoice_data["items"]:
+                        try:
+                            response = self.session.get(f"{BACKEND_URL}/items/{item_data['item_id']}")
+                            if response.status_code == 200:
+                                updated_item = response.json()
+                                expected_stock = pre_completion_stocks[item_data['item_id']] - item_data['quantity']
+                                
+                                if updated_item['stock_quantity'] == expected_stock:
+                                    original_item = next(item for item in self.test_items if item['id'] == item_data['item_id'])
+                                    self.log_result("ongoing_invoice_management", f"Stock updated after completion - {original_item['sku']}", True)
+                                else:
+                                    self.log_result("ongoing_invoice_management", f"Stock updated after completion - {original_item['sku']}", False, 
+                                                  f"Expected {expected_stock}, got {updated_item['stock_quantity']}")
+                        except Exception as e:
+                            self.log_result("ongoing_invoice_management", "Check stock after completion", False, str(e))
+                            
+                else:
+                    self.log_result("ongoing_invoice_management", "Complete ongoing invoice", False, 
+                                  f"Status: {response.status_code}")
+            except Exception as e:
+                self.log_result("ongoing_invoice_management", "Complete ongoing invoice", False, str(e))
+
+        # Test 5: Create another ongoing invoice and delete it
+        delete_test_data = {
+            "customer_name": "Test Delete",
+            "items": [{"item_id": self.test_items[0]["id"], "quantity": 1}],
+            "status": "ongoing"
         }
 
         try:
-            response = self.session.post(f"{BACKEND_URL}/invoices", json=invoice_data)
+            response = self.session.post(f"{BACKEND_URL}/invoices", json=delete_test_data)
+            if response.status_code == 200:
+                delete_invoice = response.json()
+                
+                # Try to delete ongoing invoice
+                delete_response = self.session.delete(f"{BACKEND_URL}/invoices/{delete_invoice['id']}")
+                if delete_response.status_code == 200:
+                    self.log_result("ongoing_invoice_management", "Delete ongoing invoice", True)
+                else:
+                    self.log_result("ongoing_invoice_management", "Delete ongoing invoice", False, 
+                                  f"Status: {delete_response.status_code}")
+        except Exception as e:
+            self.log_result("ongoing_invoice_management", "Delete ongoing invoice", False, str(e))
+
+    def test_gst_removal(self):
+        """Test GST Calculations Removal - subtotal should equal final_total"""
+        print("\n🚫 Testing GST Removal...")
+        
+        if len(self.test_items) < 2:
+            self.log_result("gst_removal", "GST removal tests", False, "Need at least 2 test items")
+            return
+
+        # Test 1: Create completed invoice and verify no GST calculations
+        no_gst_invoice_data = {
+            "customer_name": "No GST Customer",
+            "customer_phone": "1234567890",
+            "items": [
+                {"item_id": self.test_items[0]["id"], "quantity": 3, "selected_price": self.test_items[0]["selling_price"]},
+                {"item_id": self.test_items[1]["id"], "quantity": 2, "selected_price": self.test_items[1]["selling_price"]}
+            ],
+            "payment_mode": "Card",
+            "status": "completed"
+        }
+
+        try:
+            response = self.session.post(f"{BACKEND_URL}/invoices", json=no_gst_invoice_data)
             if response.status_code == 200:
                 invoice = response.json()
                 self.test_invoices.append(invoice)
-                self.log_result("invoice_creation", "Create multi-item invoice", True)
                 
-                # Verify stock updates
-                for item_data in invoice_data["items"]:
-                    item_id = item_data["item_id"]
-                    quantity_sold = item_data["quantity"]
-                    expected_stock = initial_stocks[item_id] - quantity_sold
-                    
-                    try:
-                        response = self.session.get(f"{BACKEND_URL}/items/{item_id}")
-                        if response.status_code == 200:
-                            updated_item = response.json()
-                            if updated_item['stock_quantity'] == expected_stock:
-                                item_sku = next(item['sku'] for item in self.test_items if item['id'] == item_id)
-                                self.log_result("invoice_creation", f"Stock update for {item_sku}", True)
-                            else:
-                                self.log_result("invoice_creation", f"Stock update for {item_sku}", False, 
-                                              f"Expected {expected_stock}, got {updated_item['stock_quantity']}")
-                    except Exception as e:
-                        self.log_result("invoice_creation", f"Verify stock update for {item_id}", False, str(e))
-                        
-            else:
-                self.log_result("invoice_creation", "Create multi-item invoice", False, 
-                              f"Status: {response.status_code}, Response: {response.text}")
-        except Exception as e:
-            self.log_result("invoice_creation", "Create multi-item invoice", False, str(e))
-
-        # Test 2: Test insufficient stock scenario
-        if self.test_items:
-            insufficient_stock_data = {
-                "customer_name": "Test Customer",
-                "items": [
-                    {"item_id": self.test_items[0]["id"], "quantity": 1000}  # More than available stock
-                ],
-                "payment_mode": "Cash"
-            }
-            
-            try:
-                response = self.session.post(f"{BACKEND_URL}/invoices", json=insufficient_stock_data)
-                if response.status_code == 400:
-                    self.log_result("invoice_creation", "Insufficient stock validation", True)
+                # Verify no GST fields
+                has_gst_fields = any(field in invoice for field in ['total_gst', 'cgst', 'sgst', 'igst', 'gst_amount'])
+                if not has_gst_fields:
+                    self.log_result("gst_removal", "No GST fields in invoice", True)
                 else:
-                    self.log_result("invoice_creation", "Insufficient stock validation", False, 
-                                  f"Expected 400, got {response.status_code}")
-            except Exception as e:
-                self.log_result("invoice_creation", "Insufficient stock validation", False, str(e))
+                    self.log_result("gst_removal", "No GST fields in invoice", False, "Invoice contains GST fields")
+                
+                # Verify subtotal equals final_total
+                if abs(invoice["subtotal"] - invoice["final_total"]) < 0.01:
+                    self.log_result("gst_removal", "Subtotal equals final_total", True)
+                else:
+                    self.log_result("gst_removal", "Subtotal equals final_total", False, 
+                                  f"Subtotal: {invoice['subtotal']}, Final Total: {invoice['final_total']}")
+                
+                # Verify manual calculation
+                expected_subtotal = sum(item["line_total"] for item in invoice["items"])
+                if abs(invoice["subtotal"] - expected_subtotal) < 0.01:
+                    self.log_result("gst_removal", "Correct subtotal calculation", True)
+                else:
+                    self.log_result("gst_removal", "Correct subtotal calculation", False, 
+                                  f"Expected: {expected_subtotal}, Got: {invoice['subtotal']}")
+                    
+            else:
+                self.log_result("gst_removal", "Create invoice without GST", False, 
+                              f"Status: {response.status_code}")
+        except Exception as e:
+            self.log_result("gst_removal", "Create invoice without GST", False, str(e))
 
-    def test_gst_calculations(self):
-        """Test GST Calculations"""
-        print("\n💰 Testing GST Calculations...")
+    def test_revenue_calculation_fix(self):
+        """Test Revenue Calculation Fix - Only completed invoices count towards revenue"""
+        print("\n💹 Testing Revenue Calculation Fix...")
         
-        if not self.test_invoices:
-            self.log_result("gst_calculations", "GST calculation tests", False, "No test invoices available")
+        # Get initial dashboard stats
+        initial_stats = None
+        try:
+            response = self.session.get(f"{BACKEND_URL}/dashboard/stats")
+            if response.status_code == 200:
+                initial_stats = response.json()
+                self.log_result("revenue_calculation_fix", "Get initial dashboard stats", True)
+            else:
+                self.log_result("revenue_calculation_fix", "Get initial dashboard stats", False, 
+                              f"Status: {response.status_code}")
+        except Exception as e:
+            self.log_result("revenue_calculation_fix", "Get initial dashboard stats", False, str(e))
+
+        if not initial_stats:
             return
 
-        # Test GST calculations on the created invoice
-        for invoice in self.test_invoices:
-            try:
-                # Manually calculate expected values
-                expected_subtotal = 0
-                expected_total_gst = 0
-                
-                for item in invoice["items"]:
-                    line_total = item["quantity"] * item["unit_price"]
-                    gst_amount = (line_total * item["gst_rate"]) / 100
-                    expected_subtotal += line_total
-                    expected_total_gst += gst_amount
-                
-                expected_gross_total = expected_subtotal + expected_total_gst
-                expected_final_total = round(expected_gross_total)
-                expected_round_off = expected_final_total - expected_gross_total
-                
-                # Verify calculations
-                subtotal_correct = abs(invoice["subtotal"] - expected_subtotal) < 0.01
-                gst_correct = abs(invoice["total_gst"] - expected_total_gst) < 0.01
-                final_total_correct = abs(invoice["final_total"] - expected_final_total) < 0.01
-                round_off_correct = abs(invoice["round_off"] - expected_round_off) < 0.01
-                
-                if subtotal_correct:
-                    self.log_result("gst_calculations", f"Subtotal calculation for {invoice['invoice_number']}", True)
-                else:
-                    self.log_result("gst_calculations", f"Subtotal calculation for {invoice['invoice_number']}", False, 
-                                  f"Expected {expected_subtotal}, got {invoice['subtotal']}")
-                
-                if gst_correct:
-                    self.log_result("gst_calculations", f"GST calculation for {invoice['invoice_number']}", True)
-                else:
-                    self.log_result("gst_calculations", f"GST calculation for {invoice['invoice_number']}", False, 
-                                  f"Expected {expected_total_gst}, got {invoice['total_gst']}")
-                
-                if final_total_correct:
-                    self.log_result("gst_calculations", f"Final total for {invoice['invoice_number']}", True)
-                else:
-                    self.log_result("gst_calculations", f"Final total for {invoice['invoice_number']}", False, 
-                                  f"Expected {expected_final_total}, got {invoice['final_total']}")
-                
-                if round_off_correct:
-                    self.log_result("gst_calculations", f"Round-off for {invoice['invoice_number']}", True)
-                else:
-                    self.log_result("gst_calculations", f"Round-off for {invoice['invoice_number']}", False, 
-                                  f"Expected {expected_round_off}, got {invoice['round_off']}")
-                    
-            except Exception as e:
-                self.log_result("gst_calculations", f"GST calculations for {invoice['invoice_number']}", False, str(e))
+        # Create ongoing invoice (should not affect revenue)
+        if len(self.test_items) >= 1:
+            ongoing_revenue_test = {
+                "customer_name": "Revenue Test Ongoing",
+                "items": [{"item_id": self.test_items[0]["id"], "quantity": 1, "selected_price": 1000.0}],
+                "status": "ongoing"
+            }
 
-    def test_thermal_receipt_generation(self):
-        """Test Thermal Receipt Generation"""
-        print("\n🧾 Testing Thermal Receipt Generation...")
+            try:
+                response = self.session.post(f"{BACKEND_URL}/invoices", json=ongoing_revenue_test)
+                if response.status_code == 200:
+                    ongoing_invoice = response.json()
+                    
+                    # Check stats after ongoing invoice
+                    response = self.session.get(f"{BACKEND_URL}/dashboard/stats")
+                    if response.status_code == 200:
+                        stats_after_ongoing = response.json()
+                        
+                        # Revenue should not change
+                        if abs(stats_after_ongoing["today_revenue"] - initial_stats["today_revenue"]) < 0.01:
+                            self.log_result("revenue_calculation_fix", "Ongoing invoice does not affect revenue", True)
+                        else:
+                            self.log_result("revenue_calculation_fix", "Ongoing invoice does not affect revenue", False, 
+                                          f"Revenue changed from {initial_stats['today_revenue']} to {stats_after_ongoing['today_revenue']}")
+                        
+                        # Ongoing invoices count should increase
+                        if stats_after_ongoing["ongoing_invoices"] > initial_stats["ongoing_invoices"]:
+                            self.log_result("revenue_calculation_fix", "Ongoing invoices count increased", True)
+                        else:
+                            self.log_result("revenue_calculation_fix", "Ongoing invoices count increased", False, 
+                                          "Ongoing invoices count did not increase")
+                            
+            except Exception as e:
+                self.log_result("revenue_calculation_fix", "Test ongoing invoice revenue impact", False, str(e))
+
+        # Create completed invoice (should affect revenue)
+        if len(self.test_items) >= 1:
+            completed_revenue_test = {
+                "customer_name": "Revenue Test Completed",
+                "items": [{"item_id": self.test_items[0]["id"], "quantity": 1, "selected_price": 500.0}],
+                "status": "completed"
+            }
+
+            try:
+                response = self.session.post(f"{BACKEND_URL}/invoices", json=completed_revenue_test)
+                if response.status_code == 200:
+                    completed_invoice = response.json()
+                    self.test_invoices.append(completed_invoice)
+                    
+                    # Check stats after completed invoice
+                    response = self.session.get(f"{BACKEND_URL}/dashboard/stats")
+                    if response.status_code == 200:
+                        final_stats = response.json()
+                        
+                        # Revenue should increase by invoice amount
+                        expected_revenue_increase = completed_invoice["final_total"]
+                        actual_revenue_increase = final_stats["today_revenue"] - initial_stats["today_revenue"]
+                        
+                        if abs(actual_revenue_increase - expected_revenue_increase) < 0.01:
+                            self.log_result("revenue_calculation_fix", "Completed invoice affects revenue correctly", True)
+                        else:
+                            self.log_result("revenue_calculation_fix", "Completed invoice affects revenue correctly", False, 
+                                          f"Expected increase: {expected_revenue_increase}, Actual: {actual_revenue_increase}")
+                        
+                        # Total invoices count should increase
+                        if final_stats["total_invoices"] > initial_stats["total_invoices"]:
+                            self.log_result("revenue_calculation_fix", "Total invoices count increased", True)
+                        else:
+                            self.log_result("revenue_calculation_fix", "Total invoices count increased", False, 
+                                          "Total invoices count did not increase")
+                            
+            except Exception as e:
+                self.log_result("revenue_calculation_fix", "Test completed invoice revenue impact", False, str(e))
+
+    def test_thermal_receipt_update(self):
+        """Test Updated Thermal Receipt - No GST details, shows invoice status"""
+        print("\n🧾 Testing Updated Thermal Receipt...")
         
         if not self.test_invoices:
-            self.log_result("thermal_receipt", "Thermal receipt tests", False, "No test invoices available")
+            self.log_result("thermal_receipt_update", "Thermal receipt tests", False, "No test invoices available")
             return
 
         for invoice in self.test_invoices:
@@ -407,75 +498,47 @@ class BackendTester:
                     receipt_data = response.json()
                     receipt_text = receipt_data.get("receipt", "")
                     
-                    # Verify receipt contains essential elements
-                    checks = [
+                    # Verify receipt does NOT contain GST details
+                    gst_terms = ['GST', 'CGST', 'SGST', 'IGST', 'Tax', 'HSN']
+                    has_gst_terms = any(term in receipt_text.upper() for term in gst_terms)
+                    
+                    if not has_gst_terms:
+                        self.log_result("thermal_receipt_update", f"No GST details in receipt {invoice['invoice_number']}", True)
+                    else:
+                        self.log_result("thermal_receipt_update", f"No GST details in receipt {invoice['invoice_number']}", False, 
+                                      "Receipt contains GST-related terms")
+                    
+                    # Verify receipt shows invoice status
+                    status_shown = f"Status: {invoice['status'].upper()}" in receipt_text
+                    if status_shown:
+                        self.log_result("thermal_receipt_update", f"Invoice status shown in receipt {invoice['invoice_number']}", True)
+                    else:
+                        self.log_result("thermal_receipt_update", f"Invoice status shown in receipt {invoice['invoice_number']}", False, 
+                                      "Invoice status not found in receipt")
+                    
+                    # Verify essential elements still present
+                    essential_checks = [
                         ("Invoice number", invoice["invoice_number"] in receipt_text),
                         ("Customer name", invoice["customer_name"] in receipt_text),
                         ("Store header", "SPARE PARTS STORE" in receipt_text),
                         ("Items section", "ITEM" in receipt_text and "QTY" in receipt_text),
                         ("Total section", "TOTAL:" in receipt_text),
-                        ("Thank you message", "Thank you" in receipt_text),
+                        ("Thank you message", "Thank you" in receipt_text.lower()),
                         ("Receipt width", all(len(line) <= 48 for line in receipt_text.split('\n')))
                     ]
                     
-                    for check_name, check_result in checks:
+                    for check_name, check_result in essential_checks:
                         if check_result:
-                            self.log_result("thermal_receipt", f"{check_name} in {invoice['invoice_number']}", True)
+                            self.log_result("thermal_receipt_update", f"{check_name} in {invoice['invoice_number']}", True)
                         else:
-                            self.log_result("thermal_receipt", f"{check_name} in {invoice['invoice_number']}", False, 
+                            self.log_result("thermal_receipt_update", f"{check_name} in {invoice['invoice_number']}", False, 
                                           f"{check_name} not found or invalid")
                             
                 else:
-                    self.log_result("thermal_receipt", f"Generate receipt for {invoice['invoice_number']}", False, 
+                    self.log_result("thermal_receipt_update", f"Generate receipt for {invoice['invoice_number']}", False, 
                                   f"Status: {response.status_code}")
             except Exception as e:
-                self.log_result("thermal_receipt", f"Generate receipt for {invoice['invoice_number']}", False, str(e))
-
-    def test_dashboard_statistics(self):
-        """Test Dashboard Statistics API"""
-        print("\n📊 Testing Dashboard Statistics...")
-        
-        try:
-            response = self.session.get(f"{BACKEND_URL}/dashboard/stats")
-            if response.status_code == 200:
-                stats = response.json()
-                
-                # Verify all required fields are present
-                required_fields = ["total_items", "total_invoices", "low_stock_items", "today_invoices", "today_revenue"]
-                for field in required_fields:
-                    if field in stats:
-                        self.log_result("dashboard_stats", f"Stats field: {field}", True)
-                    else:
-                        self.log_result("dashboard_stats", f"Stats field: {field}", False, "Field missing")
-                
-                # Verify data types and reasonable values
-                if isinstance(stats.get("total_items"), int) and stats["total_items"] >= 0:
-                    self.log_result("dashboard_stats", "Total items data type", True)
-                else:
-                    self.log_result("dashboard_stats", "Total items data type", False, "Invalid data type or value")
-                
-                if isinstance(stats.get("today_revenue"), (int, float)) and stats["today_revenue"] >= 0:
-                    self.log_result("dashboard_stats", "Today revenue data type", True)
-                else:
-                    self.log_result("dashboard_stats", "Today revenue data type", False, "Invalid data type or value")
-                    
-            else:
-                self.log_result("dashboard_stats", "Get dashboard stats", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("dashboard_stats", "Get dashboard stats", False, str(e))
-
-        # Test low stock items endpoint
-        try:
-            response = self.session.get(f"{BACKEND_URL}/items/low-stock")
-            if response.status_code == 200:
-                low_stock_items = response.json()
-                self.log_result("dashboard_stats", "Get low stock items", True)
-            else:
-                self.log_result("dashboard_stats", "Get low stock items", False, 
-                              f"Status: {response.status_code}")
-        except Exception as e:
-            self.log_result("dashboard_stats", "Get low stock items", False, str(e))
+                self.log_result("thermal_receipt_update", f"Generate receipt for {invoice['invoice_number']}", False, str(e))
 
     def cleanup_test_data(self):
         """Clean up test data"""
@@ -495,7 +558,7 @@ class BackendTester:
     def print_summary(self):
         """Print test summary"""
         print("\n" + "="*60)
-        print("🔍 BACKEND API TEST SUMMARY")
+        print("🔍 BACKEND API TEST SUMMARY - UPDATED FEATURES")
         print("="*60)
         
         total_passed = 0
@@ -525,8 +588,8 @@ class BackendTester:
             return False
 
     def run_all_tests(self):
-        """Run all backend tests"""
-        print("🚀 Starting Backend API Tests...")
+        """Run all backend tests for updated features"""
+        print("🚀 Starting Backend API Tests for Updated Features...")
         print(f"Backend URL: {BACKEND_URL}")
         
         try:
@@ -537,13 +600,13 @@ class BackendTester:
             print(f"❌ Backend connectivity failed: {e}")
             return False
         
-        # Run all test suites
-        self.test_item_crud_operations()
-        self.test_inventory_search()
-        self.test_invoice_creation_and_stock_updates()
-        self.test_gst_calculations()
-        self.test_thermal_receipt_generation()
-        self.test_dashboard_statistics()
+        # Run all test suites for updated features
+        self.test_item_model_simplification()
+        self.test_multiple_prices_per_sku()
+        self.test_ongoing_invoice_management()
+        self.test_gst_removal()
+        self.test_revenue_calculation_fix()
+        self.test_thermal_receipt_update()
         
         # Print summary
         success = self.print_summary()
