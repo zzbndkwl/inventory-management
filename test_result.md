@@ -137,15 +137,18 @@ backend:
 
   - task: "Invoice Creation with Stock Updates"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Complete invoice system with multi-item support, automatic stock validation, real-time stock updates, and stock transaction logging."
+      - working: true
+        agent: "testing"
+        comment: "✅ Invoice creation and stock updates working perfectly. Tested multi-item invoice creation with real-time stock validation and updates. Stock quantities correctly reduced after invoice creation. Insufficient stock validation working - properly rejects orders exceeding available stock. Stock transaction logging implemented."
 
   - task: "GST Calculations"
     implemented: true
