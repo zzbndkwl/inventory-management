@@ -152,15 +152,18 @@ backend:
 
   - task: "GST Calculations"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Automatic GST calculations per item, subtotal, total GST, round-off calculations for final invoice total."
+      - working: true
+        agent: "testing"
+        comment: "✅ GST calculations working perfectly. Tested with items having different GST rates (18% and 28%). Subtotal, GST amounts, round-off, and final total calculations are accurate. Verified manual calculations match system calculations exactly."
 
   - task: "Thermal Receipt Generation"
     implemented: true
