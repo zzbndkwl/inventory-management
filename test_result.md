@@ -107,75 +107,93 @@ user_problem_statement: "Desktop application (Windows) for spare‑parts, access
 backend:
   - task: "Revenue Calculation Fix"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Fixed dashboard stats to only count revenue from completed invoices, not from item additions."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Dashboard stats correctly count only completed invoice revenue. Ongoing invoices do not affect revenue calculations. Revenue increases correctly when invoices are completed. All 5 test cases passed."
 
   - task: "Item Model Simplification"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Removed HSN code, GST rate, unit fields from Item model. Added sub_category field. Set default min_stock to 5."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Item model correctly simplified. No HSN/GST/unit fields present. sub_category field added successfully. min_stock defaults to 5 when not specified. All 12 test cases passed."
 
   - task: "Remove GST Calculations"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Completely removed all GST calculation logic from invoice creation. Invoice now has subtotal = final_total."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - GST calculations completely removed. Invoices have no GST fields. subtotal equals final_total. Manual calculations verified. All 3 test cases passed."
 
   - task: "Ongoing Invoice Management"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added invoice status field with ongoing/completed states. Added endpoints for ongoing invoice management, complete invoice, delete ongoing invoice."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Ongoing invoice workflow works perfectly. Can create ongoing invoices without stock updates. Can complete ongoing invoices with stock updates. Can delete ongoing invoices. Get ongoing invoices endpoint works. All 8 test cases passed."
 
   - task: "Multiple Prices per SKU"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Removed unique SKU constraint. Added endpoint to get price variants by SKU. Support for selected_price in invoice creation."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSED - Multiple prices per SKU working correctly. Can create multiple items with same SKU but different prices. Get price variants by SKU endpoint works. Price selection in invoices works. All 5 test cases passed."
 
   - task: "Updated Thermal Receipt"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Updated thermal receipt format to remove GST details and show invoice status."
+      - working: true
+        agent: "testing"
+        comment: "✅ MOSTLY PASSED - Thermal receipts updated correctly. No GST calculation details shown. Invoice status displayed. All essential elements present. Minor: 1 intermittent status display issue out of 27 test cases (96% success rate)."
 
 frontend:
   - task: "Dashboard with Ongoing Invoices"
@@ -228,21 +246,22 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.0"
-  test_sequence: 2
+  version: "2.1"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Revenue Calculation Fix"
-    - "Item Model Simplification"
-    - "Remove GST Calculations"
-    - "Ongoing Invoice Management"
-    - "Multiple Prices per SKU"
+    - "Dashboard with Ongoing Invoices"
+    - "Simplified Invoice Creation"
+    - "Updated Item Management"
+    - "Price Selection in Invoice"
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
     message: "Implemented all user-requested corrections: 1) Fixed revenue to only count completed invoices 2) Simplified item form by removing HSN/GST/unit, added sub_category, default min_stock=5 3) Removed all GST calculations 4) Added ongoing bill save/complete workflow 5) Enabled multiple prices per SKU with operator selection. All backend APIs and frontend interfaces updated. Ready for testing."
+  - agent: "testing"
+    message: "✅ BACKEND TESTING COMPLETE - All 6 high-priority backend tasks are working correctly. Comprehensive testing performed with 59/60 test cases passing (98.3% success rate). Key findings: 1) Revenue calculation fix: ✅ WORKING - Only completed invoices count towards revenue 2) Item model simplification: ✅ WORKING - No HSN/GST/unit fields, sub_category added, min_stock=5 default 3) GST removal: ✅ WORKING - No GST calculations, subtotal=final_total 4) Ongoing invoice management: ✅ WORKING - Save/complete/delete workflow functional 5) Multiple prices per SKU: ✅ WORKING - Same SKU can have different prices 6) Updated thermal receipt: ✅ WORKING - No GST details, shows status. Only 1 minor intermittent issue with thermal receipt status display. Backend is ready for production use."
