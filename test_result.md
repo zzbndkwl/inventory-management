@@ -182,15 +182,18 @@ backend:
 
   - task: "Dashboard Statistics API"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Dashboard stats including total items, invoices, low stock alerts, today's sales and revenue."
+      - working: true
+        agent: "testing"
+        comment: "Minor: Dashboard stats API working correctly. All required fields present (total_items, total_invoices, low_stock_items, today_invoices, today_revenue) with correct data types. Minor routing issue: /items/low-stock endpoint returns 404 due to route order conflict with /items/{item_id} - needs route reordering fix."
 
 frontend:
   - task: "Dashboard with Stats and Navigation"
