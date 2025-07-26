@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Spare Parts Billing System
-Tests all high-priority backend functionality including CRUD operations,
-inventory search, invoice creation, GST calculations, and thermal receipts.
+Backend API Testing for Spare Parts Billing System - Updated Version
+Tests updated functionality based on user corrections:
+1. Revenue calculation fix (only completed invoices)
+2. Item model simplification (no HSN/GST/unit, added sub_category, min_stock=5)
+3. Remove GST calculations (subtotal = final_total)
+4. Ongoing invoice management (save/complete/delete)
+5. Multiple prices per SKU
+6. Updated thermal receipt (no GST, shows status)
 """
 
 import requests
@@ -20,12 +25,12 @@ class BackendTester:
         self.test_items = []
         self.test_invoices = []
         self.results = {
-            "item_crud": {"passed": 0, "failed": 0, "errors": []},
-            "inventory_search": {"passed": 0, "failed": 0, "errors": []},
-            "invoice_creation": {"passed": 0, "failed": 0, "errors": []},
-            "gst_calculations": {"passed": 0, "failed": 0, "errors": []},
-            "thermal_receipt": {"passed": 0, "failed": 0, "errors": []},
-            "dashboard_stats": {"passed": 0, "failed": 0, "errors": []}
+            "item_model_simplification": {"passed": 0, "failed": 0, "errors": []},
+            "multiple_prices_per_sku": {"passed": 0, "failed": 0, "errors": []},
+            "ongoing_invoice_management": {"passed": 0, "failed": 0, "errors": []},
+            "gst_removal": {"passed": 0, "failed": 0, "errors": []},
+            "revenue_calculation_fix": {"passed": 0, "failed": 0, "errors": []},
+            "thermal_receipt_update": {"passed": 0, "failed": 0, "errors": []}
         }
 
     def log_result(self, category, test_name, success, error_msg=None):
